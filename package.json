@@ -1,0 +1,23 @@
+{
+  "name": "craft-vase",
+  "version": "1.0.0",
+  "description": "Vase.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dria7226/craft-vase"
+  },
+  "keywords": [
+    "craftml",
+    "vase"
+  ],
+  "author": "Dragos Iarovoi",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dria7226/craft-vase/issues"
+  },
+  "homepage": "https://github.com/dria7226/craft-vase"
+}

@@ -1,0 +1,223 @@
+<craft name="vase">
+    <parameter name="resolution" type="int" default="32"/>
+    <parameter name="height" type="float" default="1"/>
+    <parameter name="radius" type="float" default="1.0"/>
+    <script type="text/openjscad">
+        function main(params)
+        {
+            if(params.height > 2 || params.height <= 0) params.height = 2;
+            return vase(params);
+        }
+
+        function vase(params)
+        {
+            return vessel({
+                'base_radius':params.radius,
+                'sequences':[
+                                {'curve_radius':0.1,
+                                 'curve_angle':70,
+                                 'clockwise_curving':false,
+                                 'neck_length':0.1},
+
+                                 {'curve_radius':15.0,
+                                 'curve_angle':40,
+                                 'clockwise_curving':false,
+                                 'neck_length':0.1},
+
+                                 {'curve_radius':0.2,
+                                 'curve_angle':90,
+                                 'clockwise_curving':true,
+                                 'neck_length':0.1},
+
+                                 {'curve_radius':0.1,
+                                 'curve_angle':180,
+                                 'clockwise_curving':false,
+                                 'neck_length':0.1},
+
+                                 {'curve_radius':0.2,
+                                 'curve_angle':90,
+                                 'clockwise_curving':false,
+                                 'neck_length':0.1},
+
+                                 {'curve_radius':15.0,
+                                 'curve_angle':40,
+                                 'clockwise_curving':true,
+                                 'neck_length':0.1}
+                            ],
+                'thickness':0.1,
+                'no_of_sides':params.resolution,
+                'preview':false
+            });
+        }
+
+        function vessel(params)
+        {   
+            var last_point = [];
+            var last_angle;
+            var points = [];
+            
+            //vars    
+            var base_r = params.base_radius || 1;
+            if(base_r <= 0) base_r = 0.5;
+            
+            var sequences = params.sequences;
+            
+            var skip_map = params.skip_map;
+            
+            if(!skip_map)
+            {
+                skip_map = new Array(sequences.length);
+                for(var i = 0; i < skip_map.length;i++) skip_map[i] = 0;
+            }
+            
+            var thickness = params.thickness || 0.1;
+            
+            //check all sequence parameters and find smallest r
+            var min = thickness;
+            for(var i = 0; i < sequences.length; i++)
+            {
+                //check parameters
+                if(!sequences[i].curve_radius) sequences[i].curve_radius = base_r*0.5;
+                if(sequences[i].curve_angle <= 0) sequences[i].curve_angle = 10;
+                if(sequences[i].neck_length <= 0) sequences[i].neck_length = base_r*0.1;
+                
+                //find min
+                if(!skip_map[i] &&
+                   !sequences[i].clockwise_curving &&
+                   min > sequences[i].curve_radius)
+                   
+                   min = sequences[i].curve_radius;
+            }
+            
+            if(thickness > min) thickness = 3*min/4;
+            
+            var sides = params.no_of_sides ||32;
+            if(sides < 3) sides = 3;
+            
+            var preview = params.preview || false;
+            //------------------
+            
+            //outter base
+            points =[[0,0],
+                     [base_r*0.9,0],
+                     [base_r*0.9,-base_r*0.1],
+                     [base_r,-base_r*0.1]];
+                         
+            last_point = [base_r,0];
+            last_angle = 360;
+            
+            for(var i = 0; i < sequences.length; i++)
+            {
+                
+                var seq = sequence(last_point,last_angle,sequences[i]);
+                
+                last_point = seq.lastPoint;
+                last_angle = seq.lastAngle;
+                
+                points = points.concat(seq.sequence);
+                if(i == sequences.length-1){points[points.length] = last_point;}
+            }
+            
+            //get point C
+            last_point  = [//x
+                          last_point[0] -
+                          sequences[sequences.length-1].curve_radius*Math.cos((last_angle + 90)*Math.PI/180) -
+                          sequences[sequences.length-1].neck_length*Math.cos((last_angle)*Math.PI/180)
+                          ,
+                          //y
+                          last_point[1] -
+                          sequences[sequences.length-1].curve_radius*Math.sin((last_angle + 90)*Math.PI/180) -
+                          sequences[sequences.length-1].neck_length*Math.sin((last_angle)*Math.PI/180)
+                          ];
+            //update last angle
+            last_angle += 180;
+            
+        //    for(var i = sequences.length-1; i > 0; i--)
+        //    {
+        //        addSequence({'curve_radius':sequences[i].curve_radius,
+        //                     'curve_angle' :sequences[i].curve_angle,
+        //                     'clockwise_curving':sequences[i].clockwise_curving,
+        //                     'neck_length' :sequences[i].neck_length
+        //        });  
+        //        if(i == sequences.length-1){points[points.length] = last_point;}
+        //    }
+        //    
+        //    points[points.length] = [0,thickness];
+            
+            var c = cube();
+            if(preview)
+            c = rectangular_extrude(points,{w:0.05,h:0.05,closed:false});
+            else
+            c = rotate_extrude({fn:sides}, polygon({points:points}) );
+            
+            //add smooth lip
+            //c = union(c,);
+            
+            return c;
+        }
+
+        function sequence(last_point,last_angle,params)
+        {
+            //vars    
+            var r = params.curve_radius;
+            var a = params.curve_angle;
+            var cw = params.clockwise_curving;
+            var l = params.neck_length;
+            
+            //--------------
+            
+            var square = 90;
+            //reset vars depending on ccw
+            if(cw){a *=-1;square *=-1;}
+            
+            var gamma = last_angle + a;
+            
+            var c = [last_point[0] + r*Math.cos((last_angle + square)*Math.PI/180),
+                     last_point[1] + r*Math.sin((last_angle + square)*Math.PI/180)];
+            
+            //add pie slice
+            var slice = pie_slice(c[0],c[1],r,last_angle - square,last_angle - square + a,a/15,cw);
+            
+            //add neck
+            var neck_point = [//x
+                          c[0] +
+                          r*Math.cos((gamma - square)*Math.PI/180) +
+                          l*Math.cos((gamma)*Math.PI/180),
+                          //y
+                          c[1] +
+                          r*Math.sin((gamma - square)*Math.PI/180) +
+                          l*Math.sin((gamma)*Math.PI/180)
+                          ];
+            
+            return {'sequence':slice,'lastPoint':neck_point,'lastAngle':gamma};
+        }
+
+        function pie_slice(x,y,r,a1,a2,inc,clockwise)
+        {
+            var test = function(){return i < a2+inc;}
+            if(inc <= 0) inc = 10;
+            if(clockwise) {inc*=-1;test = function(){return i > a2+inc;}};
+            var result = [];
+            
+            //generate points clockwise
+            for(var i = a1; test(); i+=inc)
+            {
+                result[result.length] = [r*Math.cos(i*Math.PI/180)+x,r*Math.sin(i*Math.PI/180)+y];
+            }
+            
+        //    //flip them if counter-clockwise
+        //    if(false)
+        //    {
+        //        for(var i = 0; 2*i < result.length;i++)
+        //        {
+        //            var intermediate;
+        //            intermediate = result[i];
+        //            result[i] = result[result.length-i-1];
+        //            result[result.length-i-1] = intermediate;
+        //        }
+        //    }
+            
+            return result;
+        }
+    </script>
+</craft>
